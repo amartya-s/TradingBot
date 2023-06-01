@@ -1,2 +1,7 @@
 # TradingBot
-An automated tool to place orders at stock market. Currently capable of listening to a specified telegram channel and place option orders at market price. The target and stoploss are set when orders are placed. It also has the capability to trail target/stoploss after placing order.
+An automated tool to place orders at stock market. 
+Currently capable of:
+- listening to a specified telegram channel
+-  place option orders at market price
+-  set target and stoploss when orders are placed
+-  Trail target/stoploss
