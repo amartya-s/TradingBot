@@ -25,8 +25,6 @@ class Logger:
     bot = telegram.Bot(token='2138126360:AAHr6WLgfu7t3UBxbRZODod1W8w145tqE84')
     chat_id = -1001606384444
 
-    # chat_id = 1015764287
-
     @staticmethod
     def send_message(msg):
         Logger.bot.send_message(Logger.chat_id, msg)
@@ -99,16 +97,10 @@ class Option:
 
             url = Option.LIVE_PRICE_URL.format(
                 expiry=expiry, strike=self.strike_price, type=option_type, frm=milliseconds_from, to=milliseconds_to)
-            # print(url)
+
             response = requests.get(url)
             option_data = response.json()
-            # Option.CTR += 1
-            # if Option.CTR % 3 == 0:
-            #     Option.PRICE += 20
-            #     return Option.PRICE
-            # if Option.CTR % 5 == 0:
-            #     Option.PRICE -= 20
-            #     return Option.PRICE
+
             latest_price = option_data['candles'][-1][-2]
         except:
             raise Exception("Failed fetching live price for {}".format(self))
@@ -234,7 +226,7 @@ class TeleBot:
     API_ID = 18476711
     API_HASH = '6842c461dfe76b7586f4a7f2a30b4c45'
     ORDER_COUNT = 0
-    PATTERN = r"(\d+)\s*(CE|PE)"
+    PATTERN = r"(\d+)\s*(CE|PE|Ce|Pe|ce|pe|cE|pE)"
 
     def __init__(self):
         self.client = TelegramClient('session_name', TeleBot.API_ID, TeleBot.API_HASH)
@@ -261,7 +253,7 @@ class TeleBot:
                     option_type = match.group(2)
                     expiry_date = TeleBot.next_thursday(datetime.datetime.today().date())  # next thursday
                     Logger.log("Expiry: {}".format(expiry_date))
-                    option_type = 'CALL' if option_type == 'CE' else 'PUT'
+                    option_type = 'CALL' if option_type.upper() == 'CE' else 'PUT'
                     option = Option(expiry_date, option_type, int(strike_price))
                     processor = OrderProcessor(TeleBot.ORDER_COUNT + 1, option, lots=3)
                     processor.start()
@@ -276,8 +268,6 @@ class TeleBot:
             self.client.run_until_disconnected()
 
 
-# user_input_channel = 'https://t.me/optiontelebot'
-# user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
-user_input_channel = 'https://t.me/BHARATTREDINGYATRA'
+user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
 bot = TeleBot()
 bot.start_listener(user_input_channel)
