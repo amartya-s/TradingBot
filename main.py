@@ -1,10 +1,10 @@
-import asyncio
 import calendar
 import datetime
 import re
 import threading
 import time
 
+import pytz
 import requests
 import telegram
 from telethon import TelegramClient, events
@@ -22,26 +22,22 @@ class OrderType:
 
 
 class Logger:
-    bot = telegram.Bot(token='2138126360:AAHr6WLgfu7t3UBxbRZODod1W8w145tqE84')
+    token = '2138126360:AAHr6WLgfu7t3UBxbRZODod1W8w145tqE84'
+    bot = telegram.Bot(token=token)
     chat_id = -1001606384444
 
     @staticmethod
-    def send_message(msg):
-        Logger.bot.send_message(Logger.chat_id, msg)
-
-    @staticmethod
     def log(msg):
+        ts = datetime.datetime.strftime(datetime.datetime.now().astimezone(tz=pytz.timezone('Asia/Kolkata')),
+                                        '%H:%M:%S')
+        msg = ts + " " + msg
         print(msg)
-        try:
-            loop = asyncio.get_event_loop()
-        except:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(Logger.send_message(msg))  # make it synchronous call
-        except Exception as e:
-            print("failed sending log {}".format(str(e)))
+        res = requests.get(
+            "https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={chat_id}&text={msg}".format(
+                BOT_TOKEN=Logger.token, chat_id=Logger.chat_id, msg=msg))
 
+        if res.status_code != 200:
+            print("Failed sending msg", res.status_code, res.json())
 
 class KiteHelper:
 
@@ -100,7 +96,6 @@ class Option:
 
             response = requests.get(url)
             option_data = response.json()
-
             latest_price = option_data['candles'][-1][-2]
         except:
             raise Exception("Failed fetching live price for {}".format(self))
@@ -268,6 +263,8 @@ class TeleBot:
             self.client.run_until_disconnected()
 
 
-user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
+user_input_channel = 'https://t.me/optiontelebot'
+# user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
+# user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
 bot = TeleBot()
 bot.start_listener(user_input_channel)
