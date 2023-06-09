@@ -26,12 +26,13 @@ class Logger:
     bot = telegram.Bot(token=token)
     chat_id = -1001606384444
 
+    # chat_id = 1015764287
+
     @staticmethod
     def log(msg):
         ts = datetime.datetime.strftime(datetime.datetime.now().astimezone(tz=pytz.timezone('Asia/Kolkata')),
                                         '%H:%M:%S')
-        msg = ts + " " + msg
-        print(msg)
+        print(ts + " " + msg)
         res = requests.get(
             "https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={chat_id}&text={msg}".format(
                 BOT_TOKEN=Logger.token, chat_id=Logger.chat_id, msg=msg))
@@ -79,7 +80,8 @@ class Option:
             option_type = 'CE' if self.type == 'CALL' else 'PE'
 
             # get last 5 minutes candlestick
-            utc_now = datetime.datetime.now()  # datetime.datetime(2023,5,26,10)
+            utc_now = datetime.datetime.now()
+            # utc_now = datetime.datetime(2023,6,8,10)
             utc_5_mins_back = utc_now - datetime.timedelta(minutes=5)
             milliseconds_from, milliseconds_to = int(utc_5_mins_back.timestamp()) * 1000, int(
                 utc_now.timestamp()) * 1000
@@ -129,10 +131,10 @@ class Order:
         self.is_live = False
 
     def dump(self):
-        Logger.log('Lot #{lot_no} {option} | target = {target} | stoploss = {stoploss}'.format(lot_no=self.lot_no,
-                                                                                               option=self.option,
-                                                                                               target=self.target,
-                                                                                               stoploss=self.stoploss))
+        Logger.log('Lot {lot_no} {option} | target = {target} | stoploss = {stoploss}'.format(lot_no=self.lot_no,
+                                                                                              option=self.option,
+                                                                                              target=self.target,
+                                                                                              stoploss=self.stoploss))
 
 
 class OrderProcessor:
@@ -159,6 +161,15 @@ class OrderProcessor:
         t = threading.Thread(target=self.monitor)
         t.start()
 
+    def dump(self):
+        market_price = self.option.get_live_price()
+        active_count = len([order for order in self.orders if order.is_live])
+
+        Logger.log(
+            "DUMP [{idx}] {option}| live price={price} | lots={lots} | active={active_count} | Net P_L={p_and_l}".format(
+                idx=self.index, option=self.option, lots=self.lots, active_count=active_count,
+                price=market_price, p_and_l=round(self.p_and_l, 2)))
+
     def monitor(self):
         ctr = 0
         while True:
@@ -166,7 +177,7 @@ class OrderProcessor:
                 active_count = len([order for order in self.orders if order.is_live])
                 if active_count == 0:
                     Logger.log(
-                        "Stopped monitoring [{idx}] {lots} lots for {option} | P&L={p_and_l}".format(idx=self.index,
+                        "Stopped monitoring [{idx}] {lots} lots for {option} | P_L={p_and_l}".format(idx=self.index,
                                                                                                      lots=self.lots,
                                                                                                      option=self.option,
                                                                                                      p_and_l=round(
@@ -181,22 +192,22 @@ class OrderProcessor:
                 for idx, order in enumerate(self.orders, 1):
                     if order.is_live:
                         if market_price >= order.target:
-                            Logger.log("Target hit for lot #{index}".format(index=idx))
+                            Logger.log("Target hit for lot {index}".format(index=idx))
                             order.square_off()
                             p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
-                            Logger.log("Lot #{lot_no} sold @{price}. P&L={p_and_l}".format(lot_no=order.lot_no,
-                                                                                           price=order.sell_price,
-                                                                                           p_and_l=p_and_l))
+                            Logger.log("Lot {lot_no} sold @{price}. P_L={p_and_l}".format(lot_no=order.lot_no,
+                                                                                          price=order.sell_price,
+                                                                                          p_and_l=p_and_l))
                             self.p_and_l += p_and_l
                             target_hit = True
                             break
                         if market_price <= order.stoploss:
-                            Logger.log("Stoploss hit for lot #{index}".format(index=idx))
+                            Logger.log("Stoploss hit for lot {index}".format(index=idx))
                             order.square_off()
                             p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
-                            Logger.log("Lot #{lot_no} sold @{price}. P&L={p_and_l}".format(lot_no=order.lot_no,
-                                                                                           price=order.sell_price,
-                                                                                           p_and_l=p_and_l))
+                            Logger.log("Lot {lot_no} sold @{price}. P_L={p_and_l}".format(lot_no=order.lot_no,
+                                                                                          price=order.sell_price,
+                                                                                          p_and_l=p_and_l))
                             self.p_and_l += p_and_l
                             sl_hit = True
 
@@ -204,13 +215,13 @@ class OrderProcessor:
                     # increase target by 30 and stoploss by 20 for each live orders
                     for order in self.orders:
                         if order.is_live:
-                            Logger.log('Trailing lot #{lot_no}'.format(lot_no=order.lot_no))
+                            Logger.log('Trailing lot {lot_no}'.format(lot_no=order.lot_no))
                             order.trail(target_by=OrderProcessor.TARGET, stoploss_by=OrderProcessor.STOPLOSS)
                             order.dump()
                 ctr += 1
-                if ctr % 10 == 0:
+                if ctr % 50 == 0:
                     Logger.log(
-                        "Monitoring [{idx}] {option} | live price={price} | #lots={lots} | #active={active_count} | Net P&L={p_and_l}".format(
+                        "Monitoring [{idx}] {option}| live price={price} | lots={lots} | active={active_count} | Net P_L={p_and_l}".format(
                             idx=self.index, option=self.option, lots=self.lots, active_count=active_count,
                             price=market_price, p_and_l=round(self.p_and_l, 2)))
             except Exception as e:
@@ -220,7 +231,6 @@ class OrderProcessor:
 class TeleBot:
     API_ID = 18476711
     API_HASH = '6842c461dfe76b7586f4a7f2a30b4c45'
-    ORDER_COUNT = 0
     PATTERN = r"(\d+)\s*(CE|PE|Ce|Pe|ce|pe|cE|pE)"
 
     def __init__(self):
@@ -237,6 +247,8 @@ class TeleBot:
 
     def start_listener(self, channel, regex=None):
 
+        all_orders = []
+
         @self.client.on(events.NewMessage(chats=channel))
         async def new_message_listener(event):
             try:
@@ -244,27 +256,41 @@ class TeleBot:
                 Logger.log("Received event with message:\n" + message_from_event[:100])
                 match = re.search(TeleBot.PATTERN, message_from_event)
                 if match:
+                    if not 'Sl  only to paid premium member'.lower() in message_from_event.lower():
+                        Logger.log('Regex match but SL missing. Ignoring message')
+                        if not all_orders:
+                            Logger.log('No orders placed yet')
+                            return
+                        for order in all_orders:
+                            order.dump()
+                        return
                     strike_price = match.group(1)
                     option_type = match.group(2)
                     expiry_date = TeleBot.next_thursday(datetime.datetime.today().date())  # next thursday
                     Logger.log("Expiry: {}".format(expiry_date))
                     option_type = 'CALL' if option_type.upper() == 'CE' else 'PUT'
                     option = Option(expiry_date, option_type, int(strike_price))
-                    processor = OrderProcessor(TeleBot.ORDER_COUNT + 1, option, lots=3)
+                    processor = OrderProcessor(len(all_orders) + 1, option, lots=3)
                     processor.start()
-                    TeleBot.ORDER_COUNT += 1
+                    all_orders.append(processor)
                 else:
                     Logger.log('Regex did not match')
+                    if not all_orders:
+                        Logger.log('No orders placed yet')
+                        return
+                    for order in all_orders:
+                        order.dump()
+
             except Exception as e:
                 Logger.log("Something failed in main handler {}".format(str(e)))
 
         with self.client:
-            Logger.log("Listenting for messages on channel {channel}".format(channel=channel))
+            Logger.log("Listening for messages on channel {channel}".format(channel=channel))
             self.client.run_until_disconnected()
 
 
-user_input_channel = 'https://t.me/optiontelebot'
+# user_input_channel = 'https://t.me/optiontelebot'
 # user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
-# user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
+user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
 bot = TeleBot()
 bot.start_listener(user_input_channel)
