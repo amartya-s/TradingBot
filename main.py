@@ -24,7 +24,7 @@ class OrderType:
 class Logger:
     token = '2138126360:AAHr6WLgfu7t3UBxbRZODod1W8w145tqE84'
     bot = telegram.Bot(token=token)
-    chat_id = -1001606384444
+    chat_id = -1001855751660
 
     # chat_id = 1015764287
 
@@ -53,8 +53,8 @@ class KiteHelper:
             # verify if we have an active position
             pass
 
-        Logger.log("Order placed [{transaction_type}] for {option} {lots} lots @{price}".format(
-            transaction_type=transaction_type, option=str(option), price=price, lots=lots))
+        Logger.log("Order placed [{transaction_type}] for {option} {lots} lots".format(
+            transaction_type=transaction_type, option=str(option), lots=lots))
 
         orders = [price for lot in range(lots)]
 
@@ -121,25 +121,29 @@ class Order:
     def set_stoploss(self, stoploss):
         self.stoploss = stoploss
 
-    def trail(self, target_by, stoploss_by):
+    def trail(self, target_by=0, stoploss_by=0):
         self.target += target_by
-        self.stoploss -= stoploss_by
+        self.stoploss += stoploss_by
 
     def square_off(self):
         price = KiteHelper.place_order(self.option, 1, transaction_type=TransactionType.Sell)
         self.sell_price = price[0]
         self.is_live = False
 
-    def dump(self):
-        Logger.log('Lot {lot_no} {option} | target = {target} | stoploss = {stoploss}'.format(lot_no=self.lot_no,
-                                                                                              option=self.option,
+    def __str__(self):
+        return 'Lot {lot_no} @{price} | tgt={target} | sl= {stoploss} | p_l = {p_l}'.format(
+            lot_no=self.lot_no,
+            price=self.buy_price,
                                                                                               target=self.target,
-                                                                                              stoploss=self.stoploss))
+            stoploss=self.stoploss,
+            p_l='N/A' if self.is_live else (self.sell_price - self.buy_price) * self.option.lot_size)
 
 
 class OrderProcessor:
-    TARGET = 30
-    STOPLOSS = 20
+    INITIAL_TARGET = 10
+    INITIAL_STOPLOSS = 20
+    TARGET_INCREMENT = 10
+    STOPLOSS_INCREMENT = 10
 
     def __init__(self, idx, option, lots):
         self.index = idx
@@ -152,11 +156,11 @@ class OrderProcessor:
         price_list = KiteHelper.place_order(self.option, lots=self.lots, order_type=OrderType.Market)
         orders = [Order(idx + 1, self.option, price) for idx, price in enumerate(price_list)]
         for order in orders:
-            order.set_target(order.buy_price + OrderProcessor.TARGET)
-            order.set_stoploss(order.buy_price - OrderProcessor.STOPLOSS)
-            order.dump()
+            order.set_target(order.buy_price + OrderProcessor.INITIAL_TARGET)
+            order.set_stoploss(order.buy_price - OrderProcessor.INITIAL_STOPLOSS)
 
         self.orders = orders
+        self.dump_all_lots()
 
         t = threading.Thread(target=self.monitor)
         t.start()
@@ -169,6 +173,19 @@ class OrderProcessor:
             "DUMP [{idx}] {option}| live price={price} | lots={lots} | active={active_count} | Net P_L={p_and_l}".format(
                 idx=self.index, option=self.option, lots=self.lots, active_count=active_count,
                 price=market_price, p_and_l=round(self.p_and_l, 2)))
+
+    def dump_all_lots(self, live_only=False):
+        msg = "[{index}] {option} \n".format(index=self.index, option=self.option)
+        for order in self.orders:
+            if live_only:
+                if order.is_live:
+                    msg += str(order)
+                    msg += "\n"
+            else:
+                msg += str(order)
+                msg += "\n"
+        Logger.log(msg)
+        self.dump()
 
     def monitor(self):
         ctr = 0
@@ -192,34 +209,50 @@ class OrderProcessor:
                 for idx, order in enumerate(self.orders, 1):
                     if order.is_live:
                         if market_price >= order.target:
-                            Logger.log("Target hit for lot {index}".format(index=idx))
+                            Logger.log(
+                                "[{index}] TARGET HIT FOR LOT {lot_index} AT PRICE {price}".format(index=self.index,
+                                                                                                   lot_index=idx,
+                                                                                                   price=market_price))
                             order.square_off()
                             p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
-                            Logger.log("Lot {lot_no} sold @{price}. P_L={p_and_l}".format(lot_no=order.lot_no,
+                            Logger.log("[{index}] Lot {lot_no} sold @{price}. P_L={p_and_l}".format(index=self.index,
+                                                                                                    lot_no=order.lot_no,
                                                                                           price=order.sell_price,
                                                                                           p_and_l=p_and_l))
                             self.p_and_l += p_and_l
                             target_hit = True
                             break
                         if market_price <= order.stoploss:
-                            Logger.log("Stoploss hit for lot {index}".format(index=idx))
+                            Logger.log(
+                                "[{index}] STOPLOSS HIT FOR LOT {lot_index} AT PRICE {price}".format(index=self.index,
+                                                                                                     lot_index=idx,
+                                                                                                     price=market_price))
                             order.square_off()
                             p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
-                            Logger.log("Lot {lot_no} sold @{price}. P_L={p_and_l}".format(lot_no=order.lot_no,
+                            Logger.log("[{index}] Lot {lot_no} sold @{price}. P_L={p_and_l}".format(index=self.index,
+                                                                                                    lot_no=order.lot_no,
                                                                                           price=order.sell_price,
                                                                                           p_and_l=p_and_l))
                             self.p_and_l += p_and_l
                             sl_hit = True
+                            break
 
-                if target_hit:
+                if target_hit or sl_hit:
                     # increase target by 30 and stoploss by 20 for each live orders
+                    if self.orders:
+                        print("!!! Trailing TGT and SL for live orders !!!")
                     for order in self.orders:
                         if order.is_live:
-                            Logger.log('Trailing lot {lot_no}'.format(lot_no=order.lot_no))
-                            order.trail(target_by=OrderProcessor.TARGET, stoploss_by=OrderProcessor.STOPLOSS)
-                            order.dump()
+                            if sl_hit:
+                                order.trail(stoploss_by=-OrderProcessor.STOPLOSS_INCREMENT)
+                            else:
+                                order.trail(target_by=OrderProcessor.TARGET_INCREMENT,
+                                            stoploss_by=OrderProcessor.STOPLOSS_INCREMENT)
+                    self.dump_all_lots()
                 ctr += 1
                 if ctr % 50 == 0:
+                    active_count = len([order for order in self.orders if order.is_live])
+
                     Logger.log(
                         "Monitoring [{idx}] {option}| live price={price} | lots={lots} | active={active_count} | Net P_L={p_and_l}".format(
                             idx=self.index, option=self.option, lots=self.lots, active_count=active_count,
@@ -253,7 +286,7 @@ class TeleBot:
         async def new_message_listener(event):
             try:
                 message_from_event = event.message.message
-                Logger.log("Received event with message:\n" + message_from_event[:100])
+                #Logger.log("Received event with message:\n" + message_from_event[:100])
                 match = re.search(TeleBot.PATTERN, message_from_event)
                 if match:
                     if not 'Sl  only to paid premium member'.lower() in message_from_event.lower():
@@ -264,13 +297,14 @@ class TeleBot:
                         for order in all_orders:
                             order.dump()
                         return
+                    Logger.log("Received event with message:\n" + message_from_event)
                     strike_price = match.group(1)
                     option_type = match.group(2)
                     expiry_date = TeleBot.next_thursday(datetime.datetime.today().date())  # next thursday
                     Logger.log("Expiry: {}".format(expiry_date))
                     option_type = 'CALL' if option_type.upper() == 'CE' else 'PUT'
                     option = Option(expiry_date, option_type, int(strike_price))
-                    processor = OrderProcessor(len(all_orders) + 1, option, lots=3)
+                    processor = OrderProcessor(len(all_orders) + 1, option, lots=10)
                     processor.start()
                     all_orders.append(processor)
                 else:
@@ -289,7 +323,7 @@ class TeleBot:
             self.client.run_until_disconnected()
 
 
-# user_input_channel = 'https://t.me/optiontelebot'
+#user_input_channel = 'https://t.me/optiontelebot'
 # user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
 user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
 bot = TeleBot()
