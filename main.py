@@ -151,6 +151,7 @@ class OrderProcessor:
         self.lots = lots
         self.orders = None
         self.p_and_l = 0
+        self.is_live = True
 
     def start(self):
         price_list = KiteHelper.place_order(self.option, lots=self.lots, order_type=OrderType.Market)
@@ -164,6 +165,16 @@ class OrderProcessor:
 
         t = threading.Thread(target=self.monitor)
         t.start()
+
+    def sqaure_off_live_positions(self):
+        Logger.log("[{}] Exiting all positions".format(self.index))
+        for order in self.orders:
+            if order.is_live:
+                order.square_off()
+                p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
+                self.p_and_l += p_and_l
+        self.dump_all_lots()
+        self.is_live = False
 
     def dump(self):
         market_price = self.option.get_live_price()
@@ -189,17 +200,11 @@ class OrderProcessor:
 
     def monitor(self):
         ctr = 0
-        while True:
+        while True and self.is_live:
             try:
                 active_count = len([order for order in self.orders if order.is_live])
                 if active_count == 0:
-                    Logger.log(
-                        "Stopped monitoring [{idx}] {lots} lots for {option} | P_L={p_and_l}".format(idx=self.index,
-                                                                                                     lots=self.lots,
-                                                                                                     option=self.option,
-                                                                                                     p_and_l=round(
-                                                                                                         self.p_and_l,
-                                                                                                         2)))
+                    self.is_live = False
                     return
 
                 time.sleep(5)
@@ -240,7 +245,7 @@ class OrderProcessor:
                 if target_hit or sl_hit:
                     # increase target by 30 and stoploss by 20 for each live orders
                     if self.orders:
-                        print("!!! Trailing TGT and SL for live orders !!!")
+                        print("[{}] Trailing TGT/SL for live positions".format(self.index))
                     for order in self.orders:
                         if order.is_live:
                             if sl_hit:
@@ -259,8 +264,14 @@ class OrderProcessor:
                             price=market_price, p_and_l=round(self.p_and_l, 2)))
             except Exception as e:
                 Logger.log('Something failed in thread {}'.format(str(e)))
-
-
+        else:
+            Logger.log(
+                "Stopped monitoring [{idx}] {lots} lots for {option} | P_L={p_and_l}".format(idx=self.index,
+                                                                                             lots=self.lots,
+                                                                                             option=self.option,
+                                                                                             p_and_l=round(
+                                                                                                 self.p_and_l,
+                                                                                                 2)))
 class TeleBot:
     API_ID = 18476711
     API_HASH = '6842c461dfe76b7586f4a7f2a30b4c45'
@@ -280,39 +291,49 @@ class TeleBot:
 
     def start_listener(self, channel, regex=None):
 
-        all_orders = []
+        all_orders = dict()
 
         @self.client.on(events.NewMessage(chats=channel))
         async def new_message_listener(event):
             try:
+                expiry_date = TeleBot.next_thursday(datetime.datetime.today().date())  # next thursday
+                all_orders.setdefault(expiry_date, [])
+
                 message_from_event = event.message.message
                 #Logger.log("Received event with message:\n" + message_from_event[:100])
                 match = re.search(TeleBot.PATTERN, message_from_event)
                 if match:
-                    if not 'Sl  only to paid premium member'.lower() in message_from_event.lower():
-                        Logger.log('Regex match but SL missing. Ignoring message')
-                        if not all_orders:
+                    if 'sl' not in message_from_event.lower() and 'only' not in message_from_event.lower():
+                        Logger.log('Regex match but SL/Only missing. Ignoring message')
+                        if not all_orders[expiry_date]:
                             Logger.log('No orders placed yet')
                             return
-                        for order in all_orders:
+                        for order in all_orders[expiry_date]:
                             order.dump()
                         return
                     Logger.log("Received event with message:\n" + message_from_event)
                     strike_price = match.group(1)
                     option_type = match.group(2)
-                    expiry_date = TeleBot.next_thursday(datetime.datetime.today().date())  # next thursday
                     Logger.log("Expiry: {}".format(expiry_date))
                     option_type = 'CALL' if option_type.upper() == 'CE' else 'PUT'
+                    # check for any open opposite trades. It does not makes sense to have 2 opposite open positions.
+                    for order in all_orders[expiry_date]:
+                        if order.is_live:
+                            prev_option_type = order.option.type
+                            if prev_option_type != option_type:
+                                Logger.log("OPPOSITE LIVE POSITION FOUND IN ORDER [{}]".format(order.index))
+                                order.sqaure_off_live_positions()
+
                     option = Option(expiry_date, option_type, int(strike_price))
-                    processor = OrderProcessor(len(all_orders) + 1, option, lots=10)
+                    processor = OrderProcessor(len(all_orders[expiry_date]) + 1, option, lots=10)
                     processor.start()
-                    all_orders.append(processor)
+                    all_orders[expiry_date].append(processor)
                 else:
                     Logger.log('Regex did not match')
-                    if not all_orders:
+                    if not all_orders[expiry_date]:
                         Logger.log('No orders placed yet')
                         return
-                    for order in all_orders:
+                    for order in all_orders[expiry_date]:
                         order.dump()
 
             except Exception as e:
@@ -323,8 +344,8 @@ class TeleBot:
             self.client.run_until_disconnected()
 
 
-#user_input_channel = 'https://t.me/optiontelebot'
+user_input_channel = 'https://t.me/optiontelebot'
 # user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
-user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
+#user_input_channel = 'https://t.me/wolf_Calls_Official_bank_nifty'
 bot = TeleBot()
 bot.start_listener(user_input_channel)
