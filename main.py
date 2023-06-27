@@ -312,19 +312,22 @@ class TeleBot:
                             order.dump()
                         return
                     Logger.log("Received event with message:\n" + message_from_event)
-                    strike_price = match.group(1)
+                    strike_price = int(match.group(1))
                     option_type = match.group(2)
                     Logger.log("Expiry: {}".format(expiry_date))
                     option_type = 'CALL' if option_type.upper() == 'CE' else 'PUT'
                     # check for any open opposite trades. It does not makes sense to have 2 opposite open positions.
                     for order in all_orders[expiry_date]:
                         if order.is_live:
-                            prev_option_type = order.option.type
-                            if prev_option_type != option_type:
+                            prev_option = order.option
+                            if prev_option.type != option_type:
                                 Logger.log("OPPOSITE LIVE POSITION FOUND IN ORDER [{}]".format(order.index))
                                 order.sqaure_off_live_positions()
+                            if prev_option.type == option_type and prev_option.strike_price == strike_price:
+                                Logger.log("DUPLICATE ORDER RECEIVED. Ignoring")
+                                return
 
-                    option = Option(expiry_date, option_type, int(strike_price))
+                    option = Option(expiry_date, option_type, strike_price)
                     processor = OrderProcessor(len(all_orders[expiry_date]) + 1, option, lots=10)
                     processor.start()
                     all_orders[expiry_date].append(processor)
