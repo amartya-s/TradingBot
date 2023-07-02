@@ -1,7 +1,10 @@
 import threading
+
 import time
 
-from TradingBot.helper import Order, OrderType, Logger, KiteHelper
+from TradingBot.common import Order, KiteHelper
+from TradingBot.enums import OrderType
+from TradingBot.logger import Logger
 
 
 class OrderProcessor:

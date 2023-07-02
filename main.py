@@ -4,7 +4,8 @@ import re
 
 from telethon import TelegramClient, events
 
-from TradingBot.helper import Logger, Option
+from TradingBot.common import Option
+from TradingBot.logger import Logger
 from TradingBot.strategy.s1 import OrderProcessor as Strategy1
 
 

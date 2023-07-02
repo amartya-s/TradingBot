@@ -1,61 +1,13 @@
 import calendar
 import datetime
 
-import pytz
 import requests
-import telegram
+
+from TradingBot.enums import TransactionType
+from TradingBot.kitehelper import KiteHelper
 
 
 # pip install python-telegram-bot
-class TransactionType:
-    Buy = 'Buy'
-    Sell = 'Sell'
-
-
-class OrderType:
-    Limit = 'Limit'
-    Market = 'Market'
-
-
-class Logger:
-    token = '2138126360:AAHr6WLgfu7t3UBxbRZODod1W8w145tqE84'
-    bot = telegram.Bot(token=token)
-    chat_id = -1001855751660
-
-    # chat_id = 1015764287
-
-    @staticmethod
-    def log(msg):
-        ts = datetime.datetime.strftime(datetime.datetime.now().astimezone(tz=pytz.timezone('Asia/Kolkata')),
-                                        '%H:%M:%S')
-        print(ts + " " + msg)
-        res = requests.get(
-            "https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={chat_id}&text={msg}".format(
-                BOT_TOKEN=Logger.token, chat_id=Logger.chat_id, msg=msg))
-
-        if res.status_code != 200:
-            print("Failed sending msg", res.status_code, res.json())
-
-
-class KiteHelper:
-
-    @staticmethod
-    def place_order(option, lots, price=None, target=None, stoploss=None, order_type=OrderType.Market,
-                    transaction_type=TransactionType.Buy):
-        """ place order at given price"""
-
-        price = price if order_type == OrderType.Limit else option.get_live_price()
-
-        if transaction_type == TransactionType.Sell:
-            # verify if we have an active position
-            pass
-
-        Logger.log("Order placed [{transaction_type}] for {option} {lots} lots".format(
-            transaction_type=transaction_type, option=str(option), lots=lots))
-
-        orders = [price for lot in range(lots)]
-
-        return orders
 
 
 class Option:
