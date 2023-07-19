@@ -14,6 +14,7 @@ class Logger:
 
     @staticmethod
     def log(msg):
+        msg = str(msg)
         ts = datetime.datetime.strftime(datetime.datetime.now().astimezone(tz=pytz.timezone('Asia/Kolkata')),
                                         '%H:%M:%S')
         print(ts + " " + msg)

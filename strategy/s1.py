@@ -1,9 +1,10 @@
+import datetime
 import threading
 
 import time
 
 from TradingBot.common import Order, KiteHelper
-from TradingBot.enums import OrderType
+from TradingBot.enums import OrderType, ExitType, MARKET_CLOSE
 from TradingBot.logger import Logger
 
 
@@ -12,6 +13,7 @@ class OrderProcessor:
     INITIAL_STOPLOSS = 20
     TARGET_INCREMENT = 10
     STOPLOSS_INCREMENT = 10
+    TICKER = 0.5  # in seconds
 
     def __init__(self, idx, option, lots):
         self.index = idx
@@ -22,9 +24,11 @@ class OrderProcessor:
         self.is_live = True
 
     def start(self):
-        price_list = KiteHelper.place_order(self.option, lots=self.lots, order_type=OrderType.Market)
-        orders = [Order(idx + 1, self.option, price) for idx, price in enumerate(price_list)]
+        price = KiteHelper.place_order(symbol=self.option.symbol, qty=self.lots * self.option.lot_size,
+                                       order_type=OrderType.Market)
+        orders = [Order(self.index, idx + 1, self.option) for idx in range(self.lots)]
         for order in orders:
+            order.buy(price)
             order.set_target(order.buy_price + OrderProcessor.INITIAL_TARGET)
             order.set_stoploss(order.buy_price - OrderProcessor.INITIAL_STOPLOSS)
 
@@ -38,7 +42,7 @@ class OrderProcessor:
         Logger.log("[{}] Exiting all positions".format(self.index))
         for order in self.orders:
             if order.is_live:
-                order.square_off()
+                order.square_off(ExitType.MARKET)
                 p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
                 self.p_and_l += p_and_l
         self.dump_all_lots()
@@ -54,7 +58,8 @@ class OrderProcessor:
                 price=market_price, p_and_l=round(self.p_and_l, 2)))
 
     def dump_all_lots(self, live_only=False):
-        msg = "[{index}] {option} \n".format(index=self.index, option=self.option)
+        lot_buy_price = self.orders[0].buy_price if self.orders else 0  # all lots have same buy price
+        msg = "[{index}] {option}@{price} \n".format(index=self.index, option=self.option, price=lot_buy_price)
         for order in self.orders:
             if live_only:
                 if order.is_live:
@@ -66,6 +71,9 @@ class OrderProcessor:
         Logger.log(msg)
         self.dump()
 
+    def adjust_sl_target(self, market_price):
+        pass
+
     def monitor(self):
         ctr = 0
         while True and self.is_live:
@@ -75,8 +83,16 @@ class OrderProcessor:
                     self.is_live = False
                     return
 
-                time.sleep(5)
+                if datetime.datetime.combine(datetime.datetime.today(),
+                                             MARKET_CLOSE) - datetime.datetime.now() <= datetime.timedelta(
+                    minutes=5):  # 5 mins before market close
+                    Logger.log("[{index}] Marker closing soon. Exiting all live positions")
+                    self.sqaure_off_live_positions()
+                    return
+
+                time.sleep(OrderProcessor.TICKER)
                 market_price = self.option.get_live_price()
+                self.adjust_sl_target(market_price)
 
                 target_hit = sl_hit = False
                 for idx, order in enumerate(self.orders, 1):
@@ -86,12 +102,13 @@ class OrderProcessor:
                                 "[{index}] TARGET HIT FOR LOT {lot_index} AT PRICE {price}".format(index=self.index,
                                                                                                    lot_index=idx,
                                                                                                    price=market_price))
-                            order.square_off()
+                            order.square_off(ExitType.TARGET_HIT)
                             p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
                             Logger.log("[{index}] Lot {lot_no} sold @{price}. P_L={p_and_l}".format(index=self.index,
                                                                                                     lot_no=order.lot_no,
                                                                                                     price=order.sell_price,
-                                                                                                    p_and_l=p_and_l))
+                                                                                                    p_and_l=round(
+                                                                                                        p_and_l, 2)))
                             self.p_and_l += p_and_l
                             target_hit = True
                             break
@@ -100,12 +117,13 @@ class OrderProcessor:
                                 "[{index}] STOPLOSS HIT FOR LOT {lot_index} AT PRICE {price}".format(index=self.index,
                                                                                                      lot_index=idx,
                                                                                                      price=market_price))
-                            order.square_off()
+                            order.square_off(ExitType.SL_HIT)
                             p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
                             Logger.log("[{index}] Lot {lot_no} sold @{price}. P_L={p_and_l}".format(index=self.index,
                                                                                                     lot_no=order.lot_no,
                                                                                                     price=order.sell_price,
-                                                                                                    p_and_l=p_and_l))
+                                                                                                    p_and_l=round(
+                                                                                                        p_and_l, 2)))
                             self.p_and_l += p_and_l
                             sl_hit = True
                             break
@@ -117,13 +135,14 @@ class OrderProcessor:
                     for order in self.orders:
                         if order.is_live:
                             if sl_hit:
-                                order.trail(stoploss_by=-OrderProcessor.STOPLOSS_INCREMENT)
+                                order.trail(stoploss_by=-OrderProcessor.STOPLOSS_INCREMENT,
+                                            target_by=-OrderProcessor.TARGET_INCREMENT)
                             else:
                                 order.trail(target_by=OrderProcessor.TARGET_INCREMENT,
                                             stoploss_by=OrderProcessor.STOPLOSS_INCREMENT)
                     self.dump_all_lots()
                 ctr += 1
-                if ctr % 50 == 0:
+                if ctr % 300 == 0:
                     active_count = len([order for order in self.orders if order.is_live])
 
                     Logger.log(
