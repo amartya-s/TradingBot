@@ -13,11 +13,11 @@ DUMMY_ORDER = False
 
 
 class AutoLogin:
-    API_KEY = 'is6mppfsg195d9xm'
-    API_SECRET = 'w4dwdpcwzcga2z9vmmw2bnnfodf7zd4j'
-    TOTP_KEY = 'KCZCUEJL4YQTTGL2UBYFNYESG2NK75OA'  # 'DL7D6QRSIFRMDWAVFBACH2U6WC6BVHQP'
-    USER_ID = 'WR6182'
-    PWD = 'Omi@1803'
+    API_KEY = '***'
+    API_SECRET = '***'
+    TOTP_KEY = '***'  # '***'
+    USER_ID = '***'
+    PWD = '***'
 
     def __init__(self):
         self.kite = None
@@ -135,7 +135,16 @@ class KiteHelper:
 
             order_details = KiteHelper.kite.order_trades(order_id)
             if not order_details:
-                raise Exception("Failed placing order. Order Id {order_id}".format(order_id=order_id))
+                retry = 3
+                while retry > 0:
+                    Logger.log("Order not filled yet")
+                    time.sleep(0.5)
+                    order_details = KiteHelper.kite.order_trades(order_id)
+                    if order_details:
+                        break
+                    retry -= 1
+                else:
+                    raise Exception("Failed placing order. Order Id {order_id}".format(order_id=order_id))
             price = order_details[0]['average_price']
         else:
             price = price if order_type == OrderType.Limit else KiteHelper.ltp(symbol)
@@ -144,8 +153,8 @@ class KiteHelper:
             # verify if we have an active position
             pass
         #
-        # Logger.log("{IsDummy} Order placed [{transaction_type}] for {option} {qty} qty".format(
-        #     transaction_type=transaction_type, option=symbol, qty=qty,IsDummy='Dummy' if DUMMY_ORDER else ''))
+        print("{IsDummy} Order placed [{transaction_type}] for {option} {qty} qty".format(
+            transaction_type=transaction_type, option=symbol, qty=qty, IsDummy='Dummy' if DUMMY_ORDER else ''))
 
         return price
 

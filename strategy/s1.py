@@ -9,8 +9,8 @@ from TradingBot.logger import Logger
 
 
 class OrderProcessor:
-    INITIAL_TARGET = 10
-    INITIAL_STOPLOSS = 20
+    INITIAL_TARGET = 15
+    INITIAL_STOPLOSS = 15
     TARGET_INCREMENT = 10
     STOPLOSS_INCREMENT = 10
     TICKER = 0.5  # in seconds
@@ -26,7 +26,7 @@ class OrderProcessor:
     def start(self):
         price = KiteHelper.place_order(symbol=self.option.symbol, qty=self.lots * self.option.lot_size,
                                        order_type=OrderType.Market)
-        orders = [Order(self.index, idx + 1, self.option) for idx in range(self.lots)]
+        orders = [Order(self.index, lot_idx + 1, self.option) for lot_idx in range(self.lots)]
         for order in orders:
             order.buy(price)
             order.set_target(order.buy_price + OrderProcessor.INITIAL_TARGET)
