@@ -1,4 +1,3 @@
-
 import datetime
 import re
 import threading
@@ -46,15 +45,14 @@ class TeleBot:
                 total_p_l = 0
                 for order in self.orders[expiry_date]:
                     exit_types = {}
-                    p_l = 0
-                    p_l += order.p_and_l
+                    p_l = order.p_and_l
                     total_p_l += p_l
                     for sub_order in order.orders:
                         exit_types.setdefault(sub_order.exit_type, 0)
                         exit_types[sub_order.exit_type] += 1
-                    report.append((exit_types, p_l))
+                    report.append((exit_types, round(p_l, 2)))
                 msg = "Total Orders = {total_orders}, Net P_L = {p_l}\n".format(
-                    total_orders=len(self.orders[expiry_date]), p_l=total_p_l)
+                    total_orders=len(self.orders[expiry_date]), p_l=round(total_p_l, 2))
                 for index, (exit_types, p_l) in enumerate(report):
                     msg += 'Order {}. '.format(index + 1)
                     msg += ''.join(["%s = %s, " % (k, v) for k, v in exit_types.items()])
