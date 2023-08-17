@@ -4,7 +4,7 @@ import threading
 import time
 
 from TradingBot.common import Order, KiteHelper
-from TradingBot.enums import OrderType, ExitType, MARKET_CLOSE
+from TradingBot.enums import OrderType, ExitType, MARKET_CLOSE, TransactionType
 from TradingBot.logger import Logger
 
 
@@ -40,13 +40,15 @@ class OrderProcessor:
 
     def sqaure_off_live_positions(self):
         Logger.log("[{}] Exiting all positions".format(self.index))
-        for order in self.orders:
-            if order.is_live:
-                order.square_off(ExitType.MARKET)
+        live_orders = [order for order in self.orders if order.is_live]
+        if live_orders:
+            price = KiteHelper.place_order(self.option.symbol, len(live_orders) * self.option.lot_size,
+                                           order_type=OrderType.Market, transaction_type=TransactionType.Sell)
+            for order in live_orders:
+                order.dummy_square_off(price, ExitType.MARKET)
                 p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
                 self.p_and_l += p_and_l
         self.dump_all_lots()
-        self.is_live = False
 
     def dump(self):
         market_price = self.option.get_live_price()
@@ -59,7 +61,7 @@ class OrderProcessor:
 
     def dump_all_lots(self, live_only=False):
         lot_buy_price = self.orders[0].buy_price if self.orders else 0  # all lots have same buy price
-        msg = "[{index}] {option}@{price} \n".format(index=self.index, option=self.option, price=lot_buy_price)
+        msg = "[{index}] {option}\n".format(index=self.index, option=self.option)
         for order in self.orders:
             if live_only:
                 if order.is_live:
@@ -76,19 +78,18 @@ class OrderProcessor:
 
     def monitor(self):
         ctr = 0
-        while True and self.is_live:
+        while True:
             try:
                 active_count = len([order for order in self.orders if order.is_live])
                 if active_count == 0:
-                    self.is_live = False
-                    return
+                    break
 
                 if datetime.datetime.combine(datetime.datetime.today(),
                                              MARKET_CLOSE) - datetime.datetime.now() <= datetime.timedelta(
                     minutes=5):  # 5 mins before market close
                     Logger.log("[{index}] Marker closing soon. Exiting all live positions")
                     self.sqaure_off_live_positions()
-                    return
+                    break
 
                 time.sleep(OrderProcessor.TICKER)
                 market_price = self.option.get_live_price()
