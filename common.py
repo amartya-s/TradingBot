@@ -162,9 +162,16 @@ class Order:
         p_l = (self.sell_price - self.buy_price) * self.option.lot_size
         # self.sqlhelper.insert_or_update_record(expiry=self.option.expiry,order_no=self.order_idx,option=str(self.option),lot_no=self.lot_no,sell_price=self.sell_price, exit_type=self.exit_type, p_l=p_l)
 
+    def dummy_square_off(self, price, exit_type):
+        self.sell_price = price
+        self.exit_type = exit_type
+        self.is_live = False
+        p_l = (self.sell_price - self.buy_price) * self.option.lot_size
+
     def __str__(self):
-        return '{lot_no}. tgt={target} | sl={stoploss} | p_l={p_l} | {exit_type}'.format(
+        return '{lot_no}. bp={buy_pride}|tgt={target}|sl={stoploss}|p_l={p_l}|{exit_type}'.format(
             lot_no=self.lot_no,
+            buy_pride=self.buy_price,
             target=self.target,
             stoploss=self.stoploss,
             p_l='N/A' if self.is_live else round((self.sell_price - self.buy_price) * self.option.lot_size, 2),
