@@ -175,4 +175,4 @@ class Order:
             target=self.target,
             stoploss=self.stoploss,
             p_l='N/A' if self.is_live else round((self.sell_price - self.buy_price) * self.option.lot_size, 2),
-            exit_type=('TGT' if self.exit_type == ExitType.TARGET_HIT else 'SL') if self.exit_type else '')
+            exit_type=self.exit_type)
