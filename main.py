@@ -10,7 +10,7 @@ from TradingBot.common import Option
 from TradingBot.enums import MARKET_CLOSE
 from TradingBot.kitehelper import KiteHelper
 from TradingBot.logger import Logger
-from TradingBot.strategy.s4 import OrderProcessor as Strategy4
+from TradingBot.strategy.s4 import OrderProcessor
 
 
 class TeleBot:
@@ -67,6 +67,7 @@ class TeleBot:
 
     def start_listener(self, channel, regex=None):
 
+        KiteHelper.login()
         expiry_date = TeleBot.next_thursday(datetime.datetime.today().date())  # next thursday
         threading.Thread(target=self.monitor_market_timings, args=(expiry_date,)).start()
 
@@ -114,7 +115,7 @@ class TeleBot:
                     #     print("Last order found")
                     #     order_idx = last_order[3]
 
-                    processor = Strategy4(order_idx + 1, option, lots=total_lots)
+                    processor = OrderProcessor(order_idx + 1, option, lots=total_lots)
                     processor.start()
                     self.orders[expiry_date].append(processor)
                 else:

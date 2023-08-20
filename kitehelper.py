@@ -91,10 +91,17 @@ class AutoLogin:
         Logger.log("[KiteLogin] Session expired. Refreshing token")
         self.login()
 
+
 class KiteHelper:
-    login_helper = AutoLogin()
-    login_helper.login()
-    kite = login_helper.kite
+
+    kite = None
+
+    @staticmethod
+    def login():
+        if not KiteHelper.kite:
+            login_helper = AutoLogin()
+            login_helper.login()
+            KiteHelper.kite = login_helper.kite
 
     @staticmethod
     def handle_auth_error(method, retries=3):
@@ -153,8 +160,8 @@ class KiteHelper:
             # verify if we have an active position
             pass
         #
-        print("{IsDummy} Order placed [{transaction_type}] for {option} {qty} qty".format(
-            transaction_type=transaction_type, option=symbol, qty=qty, IsDummy='Dummy' if DUMMY_ORDER else ''))
+        print("{IsDummy} Order placed [{transaction_type}] for {option} {qty} qty@{price}".format(
+            transaction_type=transaction_type, option=symbol, qty=qty, IsDummy='Dummy' if DUMMY_ORDER else '',price=price))
 
         return price
 
