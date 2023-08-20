@@ -42,12 +42,19 @@ class OrderProcessor:
         Logger.log("[{}] Exiting all positions".format(self.index))
         live_orders = [order for order in self.orders if order.is_live]
         if live_orders:
+            total_p_l = 0
             price = KiteHelper.place_order(self.option.symbol, len(live_orders) * self.option.lot_size,
                                            order_type=OrderType.Market, transaction_type=TransactionType.Sell)
             for order in live_orders:
                 order.dummy_square_off(price, ExitType.MARKET)
                 p_and_l = (order.sell_price - order.buy_price) * self.option.lot_size
                 self.p_and_l += p_and_l
+                total_p_l += p_and_l
+            Logger.log("[{index}] {lots} lots sold@{price}. P_L={p_and_l}".format(index=self.index,
+                                                                                  lots=len(live_orders),
+                                                                                  price=price,
+                                                                                  p_and_l=round(
+                                                                                      total_p_l, 2)))
         self.dump_all_lots()
 
     def dump(self):

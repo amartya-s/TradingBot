@@ -169,9 +169,8 @@ class Order:
         p_l = (self.sell_price - self.buy_price) * self.option.lot_size
 
     def __str__(self):
-        return '{lot_no}. bp={buy_pride}|tgt={target}|sl={stoploss}|p_l={p_l}|{exit_type}'.format(
+        return '{lot_no}. tgt={target} | sl={stoploss} | p_l={p_l} | {exit_type}'.format(
             lot_no=self.lot_no,
-            buy_pride=self.buy_price,
             target=self.target,
             stoploss=self.stoploss,
             p_l='N/A' if self.is_live else round((self.sell_price - self.buy_price) * self.option.lot_size, 2),

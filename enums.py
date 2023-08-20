@@ -13,6 +13,6 @@ class OrderType:
 
 
 class ExitType:
-    SL_HIT = 'SL_HIT'
-    TARGET_HIT = 'TARGET_HIT'
-    MARKET = 'MARKET'
+    SL_HIT = 'SL'
+    TARGET_HIT = 'TGT'
+    MARKET = 'MKT'
