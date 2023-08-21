@@ -89,13 +89,15 @@ class OrderProcessor:
             try:
                 active_count = len([order for order in self.orders if order.is_live])
                 if active_count == 0:
+                    self.is_live = False
                     break
 
                 if datetime.datetime.combine(datetime.datetime.today(),
                                              MARKET_CLOSE) - datetime.datetime.now() <= datetime.timedelta(
                     minutes=5):  # 5 mins before market close
-                    Logger.log("[{index}] Marker closing soon. Exiting all live positions")
+                    Logger.log("[{index}] Marker closing soon. Exiting all live positions".format(index=self.index))
                     self.sqaure_off_live_positions()
+                    self.is_live = False
                     break
 
                 time.sleep(OrderProcessor.TICKER)
