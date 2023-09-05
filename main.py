@@ -26,8 +26,8 @@ class TeleBot:
         Logger.log("telegram client started")
 
     @staticmethod
-    def next_thursday(date):
-        days_ahead = 3 - date.weekday()  # 3 = Thursday
+    def next_wednesday(date):
+        days_ahead = 2 - date.weekday()  # 2 = wednesday
         if days_ahead < 0:  # Target day already happened this week
             days_ahead += 7
         return date + datetime.timedelta(days_ahead)
@@ -68,13 +68,13 @@ class TeleBot:
     def start_listener(self, channel, regex=None):
 
         KiteHelper.login()
-        expiry_date = TeleBot.next_thursday(datetime.datetime.today().date())  # next thursday
+        expiry_date = TeleBot.next_wednesday(datetime.datetime.today().date())  # next wednesday
         threading.Thread(target=self.monitor_market_timings, args=(expiry_date,)).start()
 
         @self.client.on(events.NewMessage(chats=channel))
         async def new_message_listener(event):
             try:
-                expiry_date = TeleBot.next_thursday(datetime.datetime.today().date())  # next thursday
+                expiry_date = TeleBot.next_wednesday(datetime.datetime.today().date())  # next wednesday
                 self.orders.setdefault(expiry_date, [])
 
                 message_from_event = event.message.message
@@ -139,4 +139,4 @@ def run():
     bot.start_listener(user_input_channel)
 
 
-run()
+
