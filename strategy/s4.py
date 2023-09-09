@@ -10,6 +10,7 @@ class OrderProcessor(Strategy3):
 
     INITIAL_TARGET = 15
     INITIAL_STOPLOSS = 15
+    TILL_N_ORDERS = 5
 
     def __init__(self, idx, option, lots):
         super().__init__(idx, option, lots)
@@ -35,9 +36,9 @@ class OrderProcessor(Strategy3):
         super().adjust_sl_target(market_price)
 
         live_orders = [order for order in self.orders if order.is_live]
-        if live_orders:
+        if live_orders and len(live_orders) >= OrderProcessor.TILL_N_ORDERS:
             order = live_orders[0]  # first order
-            if market_price >= order.target > order.buy_price:
+            if market_price >= order.target >= order.buy_price+OrderProcessor.INITIAL_TARGET:
                 Logger.log("{index} TGT HIT FOR LOT {lot_no} @ {mp} AND MP > BP. EXITING ALL({lots}) LIVE ORDERS".format(
                     index=self.index, lot_no=order.lot_no, mp=market_price, lots=len(live_orders)))
                 self.sqaure_off_live_positions()
